@@ -46,12 +46,13 @@
     display:flex; flex-direction:column; align-items:center;
     padding:0 0 40px;
   }
-  header{ width:100%; max-width:520px; text-align:center; padding:36px 20px 8px; }
-  .eyebrow{ font-family:'Assistant',sans-serif; font-weight:800; letter-spacing:.32em; text-transform:uppercase;
-    font-size:18px; color:var(--gold); margin:0 0 10px; }
-  h1{ font-family:'David Libre',serif; font-size:40px; margin:0; color:var(--ink);
-    line-height:1.15; }
-  .sub{ color:var(--ink-dim); font-size:15px; margin:10px auto 0; max-width:380px; line-height:1.5;}
+  .eyebrowBand{ width:100%; background:#7d1e2d; padding:18px 20px; text-align:center; }
+  .eyebrow{ font-family:'Assistant',sans-serif; font-weight:800; letter-spacing:.3em; text-transform:uppercase;
+    font-size:26px; color:#f6ecd8; margin:0; }
+  header{ width:100%; max-width:560px; text-align:center; padding:30px 20px 14px; }
+  h1{ font-family:'David Libre',serif; font-size:52px; margin:0; color:var(--ink);
+    line-height:1.12; }
+  .sub{ color:var(--ink-dim); font-size:17px; font-weight:600; margin:14px auto 0; max-width:400px; line-height:1.55;}
   main{ width:100%; max-width:520px; padding:22px 18px 0; }
   .card{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
     padding:22px; box-shadow:0 18px 40px -22px rgba(0,0,0,.55); }
@@ -129,7 +130,7 @@
   .giftIcon{ width:22px; height:22px; flex:none; }
   .prizeImg{ width:100%; border-radius:16px; box-shadow:0 22px 40px -18px rgba(0,0,0,.6); display:block; }
 
-  footer.dedication{
+  .dedication{
     width:100%; margin-top:34px; background:var(--gold); color:#241a08;
     text-align:center; padding:18px 18px; font-family:'David Libre',serif;
     font-size:22px; font-weight:700; letter-spacing:.02em; line-height:1.35;
@@ -186,11 +187,13 @@
 <body>
 
 <div id="publicView">
+  <div class="eyebrowBand"><p class="eyebrow">Elul · Tefilot</p></div>
   <header>
-    <p class="eyebrow">Elul · Selijot</p>
-    <h1>Mes de Conexión</h1>
+    <h1>El Mes de la Conexión</h1>
     <p class="sub">Antes de entrar a tefilá, regístrate para la rifa del día. Elige en cuál(es) tefilot participas:</p>
   </header>
+
+  <div class="dedication">Leiluy Nishmat<br>Esther Elvira bat Rosy</div>
 
   <main>
     <div class="card">
@@ -216,8 +219,6 @@
       <div id="winnersList"></div>
     </div>
   </main>
-
-  <footer class="dedication">Leiluy Nishmat<br>Esther Elvira bat Rosy</footer>
 </div>
 
 <div id="confirmOverlay">
