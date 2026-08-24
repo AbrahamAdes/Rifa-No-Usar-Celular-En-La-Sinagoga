@@ -515,7 +515,7 @@
   var selectedDate = todayStr();
 
   function adminCall(payload){
-    payload.pin = currentPin;
+    if (payload.pin === undefined) payload.pin = currentPin;
     return fetch(ADMIN_FN_URL, {
       method: 'POST',
       headers: {
@@ -524,7 +524,14 @@
         'apikey': SUPABASE_ANON_KEY
       },
       body: JSON.stringify(payload)
-    }).then(function(r){ return r.json().then(function(j){ return {status:r.status, body:j}; }); });
+    }).then(function(r){
+      return r.text().then(function(t){
+        var j;
+        try { j = t ? JSON.parse(t) : {}; }
+        catch (e) { j = { error: 'respuesta inesperada del servidor (' + r.status + '): ' + t.slice(0, 200) }; }
+        return {status:r.status, body:j};
+      });
+    });
   }
 
   adminToggle.addEventListener('click', function(){
@@ -543,10 +550,12 @@
         pinMsg.textContent = '';
         dateFilterInput.value = selectedDate;
         renderAdmin();
-      } else {
+      } else if (res.status === 401){
         pinMsg.textContent = 'PIN incorrecto.';
+      } else {
+        pinMsg.textContent = (res.body && res.body.error) ? res.body.error : ('Error del servidor (' + res.status + ').');
       }
-    }).catch(function(){ pinMsg.textContent = 'No se pudo conectar. Intenta de nuevo.'; });
+    }).catch(function(err){ pinMsg.textContent = 'No se pudo conectar: ' + (err && err.message ? err.message : 'revisa tu conexión.'); });
   });
 
   function setSelectedDate(d){
