@@ -46,9 +46,18 @@
     display:flex; flex-direction:column; align-items:center;
     padding:0 0 40px;
   }
-  .eyebrowBand{ width:100%; background:#0a0a0a; padding:18px 20px; text-align:center; }
-  .eyebrow{ font-family:'Assistant',sans-serif; font-weight:800; letter-spacing:.3em; text-transform:uppercase;
-    font-size:26px; color:#e0bd7a; margin:0; }
+  .eyebrowBand{ position:relative; width:100%; overflow:hidden; text-align:center; padding:42px 20px 34px;
+    background: radial-gradient(120% 160% at 50% -20%, #1b2b56 0%, #0c1730 55%, #060b18 100%); }
+  .eyebrowGlow{ position:absolute; left:50%; top:50%; width:340px; height:200px; transform:translate(-50%,-50%);
+    background: radial-gradient(circle, rgba(255,150,40,0.55) 0%, rgba(226,83,26,0.28) 45%, transparent 72%);
+    filter: blur(18px); pointer-events:none; }
+  .eyebrow{ position:relative; font-family:'David Libre',serif; font-weight:700; letter-spacing:.02em; text-transform:uppercase;
+    font-size:66px; line-height:1; margin:0;
+    background:linear-gradient(180deg, #fff8e0 0%, #ffd166 22%, #f7931e 52%, #e2531a 76%, #b3211a 100%);
+    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+    text-shadow: 0 0 22px rgba(247,147,30,0.65), 0 0 46px rgba(226,83,26,0.4); }
+  .bsd{ position:absolute; top:14px; right:20px; font-family:'David Libre',serif; font-size:17px;
+    color:#e0bd7a; margin:0; z-index:2; }
   header{ width:100%; max-width:560px; text-align:center; padding:30px 20px 14px; }
   h1{ font-family:'David Libre',serif; font-size:52px; margin:0; color:var(--ink);
     line-height:1.12; }
@@ -187,7 +196,7 @@
 <body>
 
 <div id="publicView">
-  <div class="eyebrowBand"><p class="eyebrow">Elul · Tefilot</p></div>
+  <div class="eyebrowBand"><div class="eyebrowGlow"></div><p class="bsd">בס״ד</p><p class="eyebrow">Elul</p></div>
   <header>
     <h1>El Mes de la Conexión</h1>
     <p class="sub">Antes de entrar a tefilá, regístrate para la rifa del día. Elige en cuál(es) tefilot participas:</p>
