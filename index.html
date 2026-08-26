@@ -118,12 +118,23 @@
   .winnerDateBlock:last-child{ margin-bottom:0; }
   .winnerDateLabel{ font-size:13px; font-weight:800; color:var(--gold-soft); letter-spacing:.03em;
     text-transform:uppercase; margin-bottom:8px; }
-  .winnerRow{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+  .winnerRow{ display:flex; align-items:center; gap:10px;
     padding:8px 0; border-bottom:1px dashed var(--line); font-size:14.5px; }
   .winnerRow:last-child{ border-bottom:none; }
-  .winnerService{ font-weight:700; color:var(--ink); }
+  .winnerNum{ flex:none; width:30px; height:30px; border-radius:50%; background:var(--gold);
+    color:#241a08; font-weight:800; font-size:12.5px; display:flex; align-items:center; justify-content:center; }
+  .winnerService{ font-weight:700; color:var(--ink); flex:1; }
   .winnerPhone{ color:var(--ink-dim); font-variant-numeric:tabular-nums; }
   .winnersEmpty{ color:var(--ink-dim); font-size:13.5px; text-align:center; padding:6px 0; }
+  .winModeRow{ display:flex; gap:8px; margin:10px 0 14px; }
+  .modeChip{ flex:1; padding:9px 10px; border-radius:10px; border:1.5px solid var(--line);
+    background:transparent; color:var(--ink-dim); font-weight:700; font-size:12.5px; cursor:pointer; }
+  .modeChip.active{ border-color:var(--gold); color:var(--gold-soft); }
+  .drawSummary{ font-size:14px; color:var(--ink-dim); margin-bottom:10px; }
+  .ticketsWrap{ display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
+  .ticketBadge{ display:inline-flex; align-items:center; gap:6px; background:var(--bg-elev);
+    border:1px solid var(--line); border-radius:20px; padding:4px 6px 4px 10px; font-size:12px; color:var(--ink-dim); }
+  .ticketBadge button{ background:none; border:none; color:var(--danger); cursor:pointer; font-size:13px; padding:0 2px; }
 
   .prizeReveal{ margin-top:24px; padding-top:22px; border-top:1px solid rgba(244,236,216,.18);
     width:100%; max-width:300px; }
@@ -213,7 +224,17 @@
     </div>
 
     <div class="winnersCard">
-      <p class="label">🏆 Ganadores anteriores</p>
+      <p class="label">🏆 Ganadores</p>
+      <div class="dateRow">
+        <button type="button" class="dateStep" id="winDatePrev" title="Día anterior">‹</button>
+        <input type="date" id="winDateFilter" class="dateInput" />
+        <button type="button" class="dateStep" id="winDateNext" title="Día siguiente">›</button>
+      </div>
+      <div class="winModeRow">
+        <button type="button" class="modeChip" data-mode="day" id="winModeDay">Ese día</button>
+        <button type="button" class="modeChip" data-mode="week" id="winModeWeek">Última semana</button>
+        <button type="button" class="modeChip" data-mode="all" id="winModeAll">Todos</button>
+      </div>
       <div id="winnersList"></div>
     </div>
   </main>
@@ -272,8 +293,10 @@
         <button type="button" class="dateToday" id="dateToday">Hoy</button>
       </div>
       <p class="dateNote" id="todayLabel"></p>
-      <div id="serviceRows"></div>
+      <div class="drawSummary" id="drawSummary"></div>
+      <button type="button" class="drawBtn" id="drawBtn" style="width:100%; padding:12px 0;">Sortear siguiente ganador</button>
       <div id="winnerBox"></div>
+      <div id="todaysWinners"></div>
     </div>
 
     <div class="card">
@@ -451,12 +474,76 @@
   });
 
   // ---------- Public winners list ----------
+  var winMode = 'day';
+  var winSelectedDate = shiftDate(todayStr(), -1); // yesterday by default
+  var winDatePrevBtn = document.getElementById('winDatePrev');
+  var winDateNextBtn = document.getElementById('winDateNext');
+  var winDateFilterInput = document.getElementById('winDateFilter');
+  var winModeBtns = {
+    day: document.getElementById('winModeDay'),
+    week: document.getElementById('winModeWeek'),
+    all: document.getElementById('winModeAll')
+  };
+
+  function renderWinnerRows(container, winners){
+    winners
+      .slice()
+      .sort(function(a, b){ return (a.winner_number||0) - (b.winner_number||0); })
+      .forEach(function(w){
+        var row = document.createElement('div');
+        row.className = 'winnerRow';
+        var num = document.createElement('span');
+        num.className = 'winnerNum';
+        num.textContent = w.winner_number ? ('#' + w.winner_number) : '•';
+        var name = document.createElement('span');
+        name.className = 'winnerService';
+        name.textContent = labelFor(w.service);
+        var phoneEl = document.createElement('span');
+        phoneEl.className = 'winnerPhone';
+        phoneEl.textContent = w.phone;
+        row.appendChild(num);
+        row.appendChild(name);
+        row.appendChild(phoneEl);
+        container.appendChild(row);
+      });
+  }
+
+  function updateWinModeUI(){
+    Object.keys(winModeBtns).forEach(function(k){
+      winModeBtns[k].classList.toggle('active', k === winMode);
+    });
+    var dayControlsVisible = (winMode === 'day');
+    winDatePrevBtn.style.display = dayControlsVisible ? '' : 'none';
+    winDateNextBtn.style.display = dayControlsVisible ? '' : 'none';
+    winDateFilterInput.style.display = dayControlsVisible ? '' : 'none';
+  }
+
   function renderWinnersPublic(){
     var listEl = document.getElementById('winnersList');
     if (!listEl) return;
-    sb.from('winners').select('*').order('win_date', {ascending:false}).order('drawn_at', {ascending:false})
+    updateWinModeUI();
+    winDateFilterInput.value = winSelectedDate;
+
+    var query = sb.from('winners').select('*');
+    if (winMode === 'day'){
+      query = query.eq('win_date', winSelectedDate);
+    } else if (winMode === 'week'){
+      query = query.gte('win_date', shiftDate(todayStr(), -7));
+    }
+    query.order('win_date', {ascending:false}).order('winner_number', {ascending:true})
       .then(function(res){
         var winners = res.data || [];
+        listEl.innerHTML = '';
+
+        if (winMode === 'day'){
+          if (winners.length === 0){
+            listEl.innerHTML = '<p class="winnersEmpty">No hubo sorteo ese día.</p>';
+            return;
+          }
+          renderWinnerRows(listEl, winners);
+          return;
+        }
+
         if (winners.length === 0){
           listEl.innerHTML = '<p class="winnersEmpty">Todavía no se ha sorteado ningún ganador.</p>';
           return;
@@ -467,7 +554,6 @@
           byDate[w.win_date].push(w);
         });
         var dates = Object.keys(byDate).sort().reverse();
-        listEl.innerHTML = '';
         dates.forEach(function(d){
           var block = document.createElement('div');
           block.className = 'winnerDateBlock';
@@ -475,29 +561,21 @@
           label.className = 'winnerDateLabel';
           label.textContent = formatDateLabel(d);
           block.appendChild(label);
-          byDate[d]
-            .slice()
-            .sort(function(a, b){
-              return SERVICES.findIndex(function(x){return x.id===a.service;}) -
-                     SERVICES.findIndex(function(x){return x.id===b.service;});
-            })
-            .forEach(function(w){
-              var row = document.createElement('div');
-              row.className = 'winnerRow';
-              var name = document.createElement('span');
-              name.className = 'winnerService';
-              name.textContent = labelFor(w.service);
-              var phoneEl = document.createElement('span');
-              phoneEl.className = 'winnerPhone';
-              phoneEl.textContent = w.phone;
-              row.appendChild(name);
-              row.appendChild(phoneEl);
-              block.appendChild(row);
-            });
+          renderWinnerRows(block, byDate[d]);
           listEl.appendChild(block);
         });
       });
   }
+
+  winDatePrevBtn.addEventListener('click', function(){ winSelectedDate = shiftDate(winSelectedDate, -1); renderWinnersPublic(); });
+  winDateNextBtn.addEventListener('click', function(){ winSelectedDate = shiftDate(winSelectedDate, 1); renderWinnersPublic(); });
+  winDateFilterInput.addEventListener('change', function(){
+    if (winDateFilterInput.value){ winSelectedDate = winDateFilterInput.value; winMode = 'day'; renderWinnersPublic(); }
+  });
+  Object.keys(winModeBtns).forEach(function(k){
+    winModeBtns[k].addEventListener('click', function(){ winMode = k; renderWinnersPublic(); });
+  });
+
   renderWinnersPublic();
 
   // ---------- Admin ----------
@@ -578,61 +656,113 @@
       document.getElementById('todayLabel').textContent = formatDateLabel(selectedDate) + ' · ' + records.length + ' registro(s)';
       document.getElementById('winnerBox').innerHTML = '';
 
-      var rowsEl = document.getElementById('serviceRows');
-      rowsEl.innerHTML = '';
-      SERVICES.forEach(function(s){
-        var pool = records.filter(function(r){ return r.service === s.id; });
-        var row = document.createElement('div');
-        row.className = 'serviceRow';
-        row.innerHTML =
-          '<div><div class="name">' + s.label + '</div>' +
-          '<div class="count">' + pool.length + ' participante(s)</div></div>';
-        var btn = document.createElement('button');
-        btn.className = 'drawBtn';
-        btn.textContent = 'Sortear';
-        btn.disabled = pool.length === 0;
-        btn.addEventListener('click', function(){ drawWinner(s); });
-        row.appendChild(btn);
-        rowsEl.appendChild(row);
+      var byPhone = {};
+      records.forEach(function(r){
+        if (!byPhone[r.phone]) byPhone[r.phone] = [];
+        byPhone[r.phone].push(r);
       });
+      var phones = Object.keys(byPhone).sort(function(a,b){
+        var d = byPhone[b].length - byPhone[a].length;
+        return d !== 0 ? d : a.localeCompare(b);
+      });
+
+      sb.from('winners').select('*').eq('win_date', selectedDate).order('winner_number', {ascending:true})
+        .then(function(wres){
+          var todaysWinners = wres.data || [];
+          var wonPhones = {};
+          todaysWinners.forEach(function(w){ wonPhones[w.phone] = true; });
+          var remainingTickets = records.filter(function(r){ return !wonPhones[r.phone]; }).length;
+
+          var drawBtn = document.getElementById('drawBtn');
+          var summaryEl = document.getElementById('drawSummary');
+          summaryEl.textContent = todaysWinners.length + ' de 10 premios sorteados · ' + remainingTickets + ' boleto(s) en el sorteo';
+          drawBtn.disabled = (todaysWinners.length >= 10) || (remainingTickets === 0);
+          drawBtn.textContent = todaysWinners.length >= 10
+            ? 'Ya se sortearon los 10 premios de hoy'
+            : 'Sortear siguiente ganador (#' + (todaysWinners.length + 1) + ')';
+
+          var twEl = document.getElementById('todaysWinners');
+          twEl.innerHTML = '';
+          todaysWinners.forEach(function(w){
+            var row = document.createElement('div');
+            row.className = 'listRow';
+            var label = document.createElement('span');
+            label.textContent = '#' + w.winner_number + ' — ' + w.phone + ' (' + labelFor(w.service) + ')';
+            var delBtn = document.createElement('button');
+            delBtn.className = 'rowDelete';
+            delBtn.title = 'Quitar este ganador';
+            delBtn.textContent = '✕';
+            delBtn.addEventListener('click', function(){ deleteWinner(w); });
+            row.appendChild(label);
+            row.appendChild(delBtn);
+            twEl.appendChild(row);
+          });
+        });
 
       var listEl = document.getElementById('fullList');
       listEl.innerHTML = '';
-      if (records.length === 0){
+      if (phones.length === 0){
         listEl.innerHTML = '<p class="empty">No hay registros en esta fecha.</p>';
       } else {
-        records.slice().sort(function(a,b){ return new Date(b.created_at) - new Date(a.created_at); }).forEach(function(r){
+        phones.forEach(function(phone){
+          var tickets = byPhone[phone];
           var row = document.createElement('div');
           row.className = 'listRow';
+          row.style.flexDirection = 'column';
+          row.style.alignItems = 'flex-start';
+          var top = document.createElement('div');
+          top.style.display = 'flex';
+          top.style.justifyContent = 'space-between';
+          top.style.width = '100%';
           var label = document.createElement('span');
-          label.textContent = r.phone + ' — ' + labelFor(r.service);
-          var delBtn = document.createElement('button');
-          delBtn.className = 'rowDelete';
-          delBtn.title = 'Eliminar este registro';
-          delBtn.textContent = '✕';
-          delBtn.addEventListener('click', function(){ deleteOne(r); });
-          row.appendChild(label);
-          row.appendChild(delBtn);
+          label.textContent = phone + ' — ' + tickets.length + ' boleto' + (tickets.length > 1 ? 's' : '');
+          top.appendChild(label);
+          row.appendChild(top);
+          var wrap = document.createElement('div');
+          wrap.className = 'ticketsWrap';
+          tickets.forEach(function(r){
+            var badge = document.createElement('span');
+            badge.className = 'ticketBadge';
+            badge.textContent = labelFor(r.service);
+            var delBtn = document.createElement('button');
+            delBtn.textContent = '✕';
+            delBtn.title = 'Eliminar este boleto';
+            delBtn.addEventListener('click', function(){ deleteOne(r); });
+            badge.appendChild(delBtn);
+            wrap.appendChild(badge);
+          });
+          row.appendChild(wrap);
           listEl.appendChild(row);
         });
       }
     });
   }
 
-  function drawWinner(service){
+  function drawWinner(){
     var winnerBox = document.getElementById('winnerBox');
     winnerBox.innerHTML = '<div class="winner">Sorteando…</div>';
-    adminCall({ action: 'draw', date: selectedDate, service: service.id }).then(function(res){
+    adminCall({ action: 'draw', date: selectedDate }).then(function(res){
       if (res.status !== 200){
         winnerBox.innerHTML = '<div class="winner">⚠️ ' + (res.body && res.body.error || 'No se pudo sortear') + '</div>';
         return;
       }
       winnerBox.innerHTML =
-        '<div class="winner">🎉 Ganador de <b>' + service.label + '</b>: <b>' + res.body.winner + '</b>' +
+        '<div class="winner">🎉 Ganador #' + res.body.winner_number + ': <b>' + res.body.winner + '</b> (' + labelFor(res.body.service) + ')' +
         '<br><span class="winnerSaveNote">✅ Publicado — ya aparece en la página de registro.</span></div>';
       renderWinnersPublic();
+      renderAdmin();
     }).catch(function(){
       winnerBox.innerHTML = '<div class="winner">⚠️ No se pudo publicar (sin conexión).</div>';
+    });
+  }
+  document.getElementById('drawBtn').addEventListener('click', drawWinner);
+
+  function deleteWinner(w){
+    if (!window.confirm('¿Quitar al ganador #' + w.winner_number + ' (' + w.phone + ')? Los números de los demás ganadores de ese día no se recorren automáticamente.')) return;
+    adminCall({ action: 'delete_winner', id: w.id }).then(function(res){
+      if (res.status !== 200) window.alert('No se pudo eliminar. Intenta de nuevo.');
+      renderAdmin();
+      renderWinnersPublic();
     });
   }
 
