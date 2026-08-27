@@ -190,6 +190,11 @@
     cursor:pointer; flex:none; padding:2px 6px; }
   .dangerLink{ background:none; border:none; color:var(--danger); font-size:12.5px;
     font-weight:700; cursor:pointer; text-decoration:underline; }
+  .copyBtn{ background:transparent; border:1.5px solid var(--line); color:var(--ink-dim);
+    padding:10px 14px; border-radius:10px; font-weight:700; cursor:pointer; font-size:13px;
+    width:100%; margin-top:10px; }
+  .copyBtn:disabled{ opacity:.4; cursor:not-allowed; }
+  .copyMsg{ font-size:12.5px; color:var(--ok); margin-top:6px; text-align:center; min-height:16px; }
   .empty{ color:var(--ink-dim); font-size:13.5px; text-align:center; padding:14px 0; }
   .pinInput{ width:100%; padding:14px; border-radius:12px; border:1.5px solid var(--line);
     background:transparent; color:var(--ink); font-size:20px; letter-spacing:.3em; text-align:center; }
@@ -297,6 +302,8 @@
       <button type="button" class="drawBtn" id="drawBtn" style="width:100%; padding:12px 0;">Sortear siguiente ganador</button>
       <div id="winnerBox"></div>
       <div id="todaysWinners"></div>
+      <button type="button" class="copyBtn" id="copyWinnersBtn" disabled>📋 Copiar lista de ganadores para Chef Jeff</button>
+      <p class="copyMsg" id="copyMsg"></p>
     </div>
 
     <div class="card">
@@ -589,6 +596,7 @@
   var dateFilterInput = document.getElementById('dateFilter');
   var currentPin = null;
   var selectedDate = todayStr();
+  var lastTodaysWinners = [];
 
   function adminCall(payload){
     if (payload.pin === undefined) payload.pin = currentPin;
@@ -669,6 +677,9 @@
       sb.from('winners').select('*').eq('win_date', selectedDate).order('winner_number', {ascending:true})
         .then(function(wres){
           var todaysWinners = wres.data || [];
+          lastTodaysWinners = todaysWinners;
+          var copyBtnEl = document.getElementById('copyWinnersBtn');
+          copyBtnEl.disabled = todaysWinners.length === 0;
           var wonPhones = {};
           todaysWinners.forEach(function(w){ wonPhones[w.phone] = true; });
           var remainingTickets = records.filter(function(r){ return !wonPhones[r.phone]; }).length;
@@ -774,6 +785,53 @@
       renderAdmin();
     });
   }
+
+  function fallbackCopy(text, onDone, onFail){
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (ok) onDone(); else onFail();
+    } catch (e) {
+      document.body.removeChild(ta);
+      onFail();
+    }
+  }
+
+  var copyWinnersBtn = document.getElementById('copyWinnersBtn');
+  var copyMsgEl = document.getElementById('copyMsg');
+  copyWinnersBtn.addEventListener('click', function(){
+    if (!lastTodaysWinners.length) return;
+    var lines = ['Ganadores rifa Elul — ' + formatDateLabel(selectedDate), ''];
+    lastTodaysWinners
+      .slice()
+      .sort(function(a, b){ return (a.winner_number||0) - (b.winner_number||0); })
+      .forEach(function(w){
+        lines.push('#' + w.winner_number + ' — ' + w.phone + ' — ' + labelFor(w.service));
+      });
+    var text = lines.join('\n');
+
+    function showCopied(){
+      copyMsgEl.textContent = '✅ Copiado — pégalo en el chat de Chef Jeff.';
+      setTimeout(function(){ copyMsgEl.textContent = ''; }, 4000);
+    }
+    function showFailed(){
+      copyMsgEl.textContent = 'No se pudo copiar automáticamente. Selecciona el texto manualmente.';
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(showCopied).catch(function(){ fallbackCopy(text, showCopied, showFailed); });
+    } else {
+      fallbackCopy(text, showCopied, showFailed);
+    }
+  });
 
   var deleteAllBtn = document.getElementById('deleteAllBtn');
   deleteAllBtn.addEventListener('click', function(){
