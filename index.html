@@ -77,6 +77,10 @@
   }
   input[type="tel"]:focus{ border-color:var(--gold); }
   .hint{ font-size:12.5px; color:var(--ink-dim); margin:0 0 20px; }
+  .closedCard{ text-align:center; }
+  .closedCard .closedIcon{ font-size:34px; margin-bottom:10px; display:block; }
+  .closedCard .closedTitle{ font-family:'David Libre',serif; font-size:20px; font-weight:700; color:var(--ink); margin:0 0 8px; }
+  .closedCard .closedText{ font-size:14.5px; color:var(--ink-dim); line-height:1.6; margin:0; }
   .go{
     width:100%; padding:16px; border:none; border-radius:14px; background:var(--gold);
     color:#241a08; font-family:'David Libre',serif; font-weight:700; font-size:18px;
@@ -210,7 +214,12 @@
   </header>
 
   <main>
-    <div class="card">
+    <div class="card closedCard" id="closedCard" style="display:none;">
+      <span class="closedIcon">🎉</span>
+      <p class="closedTitle">Ya se realizaron las rifas de hoy</p>
+      <p class="closedText">¡Felicidades a los ganadores! Ya se sortearon los 10 premios del día — la inscripción para hoy está cerrada.<br><br>Participa mañana registrándote antes de tu tefilá.</p>
+    </div>
+    <div class="card" id="regCard">
       <p class="label">Tu número de celular</p>
       <input type="tel" id="phoneInput" inputmode="tel" placeholder="55 1234 5678" autocomplete="tel" />
       <p class="hint">Puedes participar hasta 4 veces al día — una por cada tefilá.</p>
@@ -440,44 +449,64 @@
     }
 
     submitBtn.disabled = true;
-    var prizeLabelTextEl = document.getElementById('prizeLabelText');
-    if (prizeLabelTextEl){
-      prizeLabelTextEl.textContent = 'Hoy participas en la rifa de ' + chosen.map(labelFor).join(' y ') + ' por:';
-    }
-    saveStatus.textContent = 'Guardando…';
-    showConfirm(true);
+    formMsg.textContent = 'Verificando…';
 
-    // The database itself enforces "no duplicates" atomically (a unique
-    // constraint on phone+service+day) — this loop cannot race, unlike a
-    // client-only check would.
-    (async function(){
-      var inserted = [];
-      var alreadyReg = [];
-      var failed = false;
-      for (var i = 0; i < chosen.length; i++){
-        var service = chosen[i];
-        var res = await sb.from('registrations').insert({ phone: phone, service: service });
-        if (res.error){
-          if (res.error.code === '23505'){ alreadyReg.push(service); }
-          else { failed = true; }
-        } else {
-          inserted.push(service);
+    // Guard against the case where someone left the page open and the day's
+    // 10 prizes got drawn while they were filling out the form — re-check
+    // right before submitting, not just on page load.
+    sb.from('winners').select('id').eq('win_date', todayStr()).then(function(res){
+      var closed = (res.data || []).length >= 10;
+      if (closed){
+        submitBtn.disabled = false;
+        formMsg.textContent = 'No se pudo realizar tu solicitud: el sorteo de hoy ya se realizó. ¡Participa mañana!';
+        formMsg.className = 'msg err';
+        checkTodaysDrawsClosed(); // switch the page over to the closed banner too
+        return;
+      }
+      formMsg.textContent = '';
+      submitRegistration();
+    });
+
+    function submitRegistration(){
+      var prizeLabelTextEl = document.getElementById('prizeLabelText');
+      if (prizeLabelTextEl){
+        prizeLabelTextEl.textContent = 'Hoy participas en la rifa de ' + chosen.map(labelFor).join(' y ') + ' por:';
+      }
+      saveStatus.textContent = 'Guardando…';
+      showConfirm(true);
+
+      // The database itself enforces "no duplicates" atomically (a unique
+      // constraint on phone+service+day) — this loop cannot race, unlike a
+      // client-only check would.
+      (async function(){
+        var inserted = [];
+        var alreadyReg = [];
+        var failed = false;
+        for (var i = 0; i < chosen.length; i++){
+          var service = chosen[i];
+          var res = await sb.from('registrations').insert({ phone: phone, service: service });
+          if (res.error){
+            if (res.error.code === '23505'){ alreadyReg.push(service); }
+            else { failed = true; }
+          } else {
+            inserted.push(service);
+          }
         }
-      }
-      if (failed && inserted.length === 0){
-        saveStatus.textContent = 'No se pudo registrar automáticamente. Avísale a un encargado en la entrada.';
-      } else if (inserted.length === 0){
-        saveStatus.textContent = 'Ya estabas registrado hoy en: ' + alreadyReg.map(labelFor).join(', ') + '.';
-      } else {
-        var note = alreadyReg.length ? ' (ya estabas registrado en: ' + alreadyReg.map(labelFor).join(', ') + ')' : '';
-        saveStatus.textContent = 'Registrado ✅ — ' + inserted.map(labelFor).join(', ') + note;
-      }
-      submitBtn.disabled = false;
-    })();
+        if (failed && inserted.length === 0){
+          saveStatus.textContent = 'No se pudo registrar automáticamente. Avísale a un encargado en la entrada.';
+        } else if (inserted.length === 0){
+          saveStatus.textContent = 'Ya estabas registrado hoy en: ' + alreadyReg.map(labelFor).join(', ') + '.';
+        } else {
+          var note = alreadyReg.length ? ' (ya estabas registrado en: ' + alreadyReg.map(labelFor).join(', ') + ')' : '';
+          saveStatus.textContent = 'Registrado ✅ — ' + inserted.map(labelFor).join(', ') + note;
+        }
+        submitBtn.disabled = false;
+      })();
 
-    phoneInput.value = '';
-    chips.forEach(function(b){ b.setAttribute('aria-pressed','false'); b.removeAttribute('data-already'); });
-    chipNote.textContent = '';
+      phoneInput.value = '';
+      chips.forEach(function(b){ b.setAttribute('aria-pressed','false'); b.removeAttribute('data-already'); });
+      chipNote.textContent = '';
+    }
   });
 
   // ---------- Public winners list ----------
@@ -584,6 +613,22 @@
   });
 
   renderWinnersPublic();
+
+  // Once the 10 daily prizes are drawn, hide the registration form and show
+  // a "closed for today" notice instead — registering after the draw is
+  // done would just create confusion (that ticket can't win anything today).
+  var regCardEl = document.getElementById('regCard');
+  var closedCardEl = document.getElementById('closedCard');
+  function checkTodaysDrawsClosed(){
+    sb.from('winners').select('id').eq('win_date', todayStr())
+      .then(function(res){
+        var count = (res.data || []).length;
+        var closed = count >= 10;
+        regCardEl.style.display = closed ? 'none' : '';
+        closedCardEl.style.display = closed ? '' : 'none';
+      });
+  }
+  checkTodaysDrawsClosed();
 
   // ---------- Admin ----------
   var adminToggle = document.getElementById('adminToggle');
@@ -762,6 +807,7 @@
         '<br><span class="winnerSaveNote">✅ Publicado — ya aparece en la página de registro.</span></div>';
       renderWinnersPublic();
       renderAdmin();
+      if (selectedDate === todayStr()) checkTodaysDrawsClosed();
     }).catch(function(){
       winnerBox.innerHTML = '<div class="winner">⚠️ No se pudo publicar (sin conexión).</div>';
     });
@@ -774,6 +820,7 @@
       if (res.status !== 200) window.alert('No se pudo eliminar. Intenta de nuevo.');
       renderAdmin();
       renderWinnersPublic();
+      if (selectedDate === todayStr()) checkTodaysDrawsClosed();
     });
   }
 
