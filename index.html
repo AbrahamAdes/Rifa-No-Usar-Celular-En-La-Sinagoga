@@ -69,6 +69,7 @@
   .chip:active{ transform:scale(.97); }
   .chip[data-already="true"]{ opacity:.4; cursor:not-allowed; }
   .chip[data-already="true"][aria-pressed="true"]{ background:transparent; color:var(--ink); border-color:var(--line); }
+  .chip[data-unavailable="true"]{ opacity:.35; cursor:not-allowed; }
   .chipNote{ font-size:11.5px; color:var(--ink-dim); margin:-14px 0 18px; min-height:14px; }
   input[type="tel"]{
     width:100%; padding:15px 14px; border-radius:14px; border:1.5px solid var(--line);
@@ -214,6 +215,11 @@
   </header>
 
   <main>
+    <div class="card closedCard" id="shabbatCard" style="display:none;">
+      <span class="closedIcon">🕯️</span>
+      <p class="closedTitle">Shabat Shalom</p>
+      <p class="closedText">Hoy es Shabat — no hay inscripción ni rifa.<br><br>Nos vemos el domingo. ¡Shabat Shalom!</p>
+    </div>
     <div class="card closedCard" id="closedCard" style="display:none;">
       <span class="closedIcon">🎉</span>
       <p class="closedTitle">Ya se realizaron las rifas de hoy</p>
@@ -353,6 +359,12 @@
     return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
   }
 
+  // No registration/raffle at all on Saturdays (Shabbat), and no Arbit
+  // option on Fridays. Uses the visitor's own device clock, which is fine
+  // here since everyone using this page is physically in Panama.
+  function isSaturdayToday(){ return new Date().getDay() === 6; }
+  function isFridayToday(){ return new Date().getDay() === 5; }
+
   function formatDateLabel(dateStr){
     var today = todayStr();
     var yesterday = shiftDate(today, -1);
@@ -376,9 +388,18 @@
 
   // ---------- Public form ----------
   var chips = document.querySelectorAll('#serviceChips .chip');
+  if (isFridayToday()){
+    var arbitChip = document.querySelector('#serviceChips .chip[data-service="arbit"]');
+    if (arbitChip){
+      arbitChip.setAttribute('data-unavailable', 'true');
+      arbitChip.setAttribute('aria-pressed', 'false');
+    }
+  }
+  function baseChipNote(){ return isFridayToday() ? 'Los viernes no hay rifa de Arbit.' : ''; }
   chips.forEach(function(btn){
     btn.addEventListener('click', function(){
       if (btn.dataset.already === 'true') return;
+      if (btn.dataset.unavailable === 'true') return;
       var pressed = btn.getAttribute('aria-pressed') === 'true';
       btn.setAttribute('aria-pressed', pressed ? 'false' : 'true');
     });
@@ -389,6 +410,7 @@
   }
 
   var chipNote = document.getElementById('chipNote');
+  chipNote.textContent = baseChipNote();
   var submitBtn = document.getElementById('submitBtn');
   var phoneInput = document.getElementById('phoneInput');
   var formMsg = document.getElementById('formMsg');
@@ -414,7 +436,7 @@
     var phone = sanitized;
     if (!isValidPhoneLen(phone.length)){
       chips.forEach(function(b){ b.removeAttribute('data-already'); });
-      chipNote.textContent = '';
+      chipNote.textContent = baseChipNote();
       return;
     }
     checkTimer = setTimeout(function(){
@@ -430,9 +452,10 @@
             b.removeAttribute('data-already');
           }
         });
-        chipNote.textContent = lockedLabels.length
+        var lockedMsg = lockedLabels.length
           ? 'Ese número ya está registrado hoy en: ' + lockedLabels.join(', ') + '.'
           : '';
+        chipNote.textContent = [baseChipNote(), lockedMsg].filter(Boolean).join(' ');
       });
     }, 350);
   });
@@ -450,6 +473,19 @@
     }
     if (!isValidPhoneLen(phone.length)){
       formMsg.textContent = 'Escribe un número de teléfono válido (7 u 8 dígitos).';
+      formMsg.className = 'msg err';
+      return;
+    }
+    // Re-check the day itself at submit time too — protects against a
+    // stale tab left open from before Shabbat/Friday that never reloaded.
+    if (isSaturdayToday()){
+      formMsg.textContent = 'Hoy es Shabat — no hay inscripción ni rifa.';
+      formMsg.className = 'msg err';
+      checkTodaysDrawsClosed();
+      return;
+    }
+    if (isFridayToday() && chosen.indexOf('arbit') !== -1){
+      formMsg.textContent = 'Los viernes no hay rifa de Arbit.';
       formMsg.className = 'msg err';
       return;
     }
@@ -511,7 +547,7 @@
 
       phoneInput.value = '';
       chips.forEach(function(b){ b.setAttribute('aria-pressed','false'); b.removeAttribute('data-already'); });
-      chipNote.textContent = '';
+      chipNote.textContent = baseChipNote();
     }
   });
 
@@ -629,7 +665,15 @@
   // done would just create confusion (that ticket can't win anything today).
   var regCardEl = document.getElementById('regCard');
   var closedCardEl = document.getElementById('closedCard');
+  var shabbatCardEl = document.getElementById('shabbatCard');
   function checkTodaysDrawsClosed(){
+    if (isSaturdayToday()){
+      regCardEl.style.display = 'none';
+      closedCardEl.style.display = 'none';
+      shabbatCardEl.style.display = '';
+      return;
+    }
+    shabbatCardEl.style.display = 'none';
     sb.from('winners').select('id').eq('win_date', todayStr())
       .then(function(res){
         var count = (res.data || []).length;
