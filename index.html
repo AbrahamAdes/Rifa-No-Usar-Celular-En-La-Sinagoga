@@ -639,10 +639,10 @@
 
         // As long as the visitor hasn't manually picked a date/mode, keep
         // the "Ganadores" section pointed at whichever day is relevant:
-        // today's list once today's 10 prizes are all in, yesterday's
-        // before that.
+        // today's list as soon as today's first prize is drawn, yesterday's
+        // before that (not today's list only stays empty all day otherwise).
         if (winAutoMode && winMode === 'day'){
-          var target = closed ? todayStr() : shiftDate(todayStr(), -1);
+          var target = count > 0 ? todayStr() : shiftDate(todayStr(), -1);
           if (winSelectedDate !== target){
             winSelectedDate = target;
             renderWinnersPublic();
