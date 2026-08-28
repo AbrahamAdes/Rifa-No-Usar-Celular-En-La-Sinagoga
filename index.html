@@ -221,7 +221,7 @@
     </div>
     <div class="card" id="regCard">
       <p class="label">Tu número de celular</p>
-      <input type="tel" id="phoneInput" inputmode="tel" placeholder="55 1234 5678" autocomplete="tel" />
+      <input type="tel" id="phoneInput" inputmode="numeric" placeholder="6123 4567" autocomplete="tel" />
       <p class="hint">Puedes participar hasta 4 veces al día — una por cada tefilá.</p>
 
       <p class="label">¿En qué tefilá participas hoy?</p>
@@ -402,11 +402,17 @@
   // Greys out chips this phone already registered today. Uses a safe RPC
   // (security definer) that only echoes back the caller's own phone status —
   // it never exposes anyone else's data.
+  function isValidPhoneLen(len){ return len === 7 || len === 8; }
+
   var checkTimer = null;
   phoneInput.addEventListener('input', function(){
     clearTimeout(checkTimer);
-    var phone = phoneInput.value.replace(/[^0-9+]/g,'');
-    if (phone.length < 8){
+    // Panama numbers only: digits only (no "+", no letters, no spaces),
+    // capped at 8 characters — 7 for landlines, 8 for mobile.
+    var sanitized = phoneInput.value.replace(/[^0-9]/g,'').slice(0, 8);
+    if (sanitized !== phoneInput.value) phoneInput.value = sanitized;
+    var phone = sanitized;
+    if (!isValidPhoneLen(phone.length)){
       chips.forEach(function(b){ b.removeAttribute('data-already'); });
       chipNote.textContent = '';
       return;
@@ -434,7 +440,7 @@
   submitBtn.addEventListener('click', function(){
     formMsg.textContent = '';
     formMsg.className = 'msg';
-    var phone = phoneInput.value.replace(/[^0-9+]/g,'');
+    var phone = phoneInput.value.replace(/[^0-9]/g,'').slice(0, 8);
     var chosen = selectedServices();
 
     if (chosen.length === 0){
@@ -442,8 +448,8 @@
       formMsg.className = 'msg err';
       return;
     }
-    if (phone.length < 8){
-      formMsg.textContent = 'Escribe un número de celular válido.';
+    if (!isValidPhoneLen(phone.length)){
+      formMsg.textContent = 'Escribe un número de teléfono válido (7 u 8 dígitos).';
       formMsg.className = 'msg err';
       return;
     }
