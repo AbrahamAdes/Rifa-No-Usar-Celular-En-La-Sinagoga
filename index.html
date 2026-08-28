@@ -751,13 +751,21 @@
           todaysWinners.forEach(function(w){ wonPhones[w.phone] = true; });
           var remainingTickets = records.filter(function(r){ return !wonPhones[r.phone]; }).length;
 
+          // Match the server: the next draw fills the lowest free slot
+          // (1-10), not just "count + 1" — so deleting, say, #3 makes the
+          // next draw become the new #3 instead of tacking on a second #10.
+          var usedNumbers = {};
+          todaysWinners.forEach(function(w){ usedNumbers[w.winner_number] = true; });
+          var nextNumber = 1;
+          while (usedNumbers[nextNumber] && nextNumber <= 10) nextNumber++;
+
           var drawBtn = document.getElementById('drawBtn');
           var summaryEl = document.getElementById('drawSummary');
           summaryEl.textContent = todaysWinners.length + ' de 10 premios sorteados · ' + remainingTickets + ' boleto(s) en el sorteo';
-          drawBtn.disabled = (todaysWinners.length >= 10) || (remainingTickets === 0);
-          drawBtn.textContent = todaysWinners.length >= 10
+          drawBtn.disabled = (nextNumber > 10) || (remainingTickets === 0);
+          drawBtn.textContent = nextNumber > 10
             ? 'Ya se sortearon los 10 premios de hoy'
-            : 'Sortear siguiente ganador (#' + (todaysWinners.length + 1) + ')';
+            : 'Sortear siguiente ganador (#' + nextNumber + ')';
 
           var twEl = document.getElementById('todaysWinners');
           twEl.innerHTML = '';
@@ -837,7 +845,7 @@
   document.getElementById('drawBtn').addEventListener('click', drawWinner);
 
   function deleteWinner(w){
-    if (!window.confirm('¿Quitar al ganador #' + w.winner_number + ' (' + w.phone + ')? Los números de los demás ganadores de ese día no se recorren automáticamente.')) return;
+    if (!window.confirm('¿Quitar al ganador #' + w.winner_number + ' (' + w.phone + ')? Los ganadores con número mayor se van a recorrer uno hacia atrás.')) return;
     adminCall({ action: 'delete_winner', id: w.id }).then(function(res){
       if (res.status !== 200) window.alert('No se pudo eliminar. Intenta de nuevo.');
       renderAdmin();
