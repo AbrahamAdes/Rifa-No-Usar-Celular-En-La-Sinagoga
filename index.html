@@ -512,6 +512,10 @@
   // ---------- Public winners list ----------
   var winMode = 'day';
   var winSelectedDate = shiftDate(todayStr(), -1); // yesterday by default
+  // Stays true until the visitor manually touches the date/mode controls.
+  // While true, checkTodaysDrawsClosed() is allowed to flip the default
+  // from "yesterday" to "today" the moment today's 10 prizes are drawn.
+  var winAutoMode = true;
   var winDatePrevBtn = document.getElementById('winDatePrev');
   var winDateNextBtn = document.getElementById('winDateNext');
   var winDateFilterInput = document.getElementById('winDateFilter');
@@ -603,13 +607,13 @@
       });
   }
 
-  winDatePrevBtn.addEventListener('click', function(){ winSelectedDate = shiftDate(winSelectedDate, -1); renderWinnersPublic(); });
-  winDateNextBtn.addEventListener('click', function(){ winSelectedDate = shiftDate(winSelectedDate, 1); renderWinnersPublic(); });
+  winDatePrevBtn.addEventListener('click', function(){ winAutoMode = false; winSelectedDate = shiftDate(winSelectedDate, -1); renderWinnersPublic(); });
+  winDateNextBtn.addEventListener('click', function(){ winAutoMode = false; winSelectedDate = shiftDate(winSelectedDate, 1); renderWinnersPublic(); });
   winDateFilterInput.addEventListener('change', function(){
-    if (winDateFilterInput.value){ winSelectedDate = winDateFilterInput.value; winMode = 'day'; renderWinnersPublic(); }
+    if (winDateFilterInput.value){ winAutoMode = false; winSelectedDate = winDateFilterInput.value; winMode = 'day'; renderWinnersPublic(); }
   });
   Object.keys(winModeBtns).forEach(function(k){
-    winModeBtns[k].addEventListener('click', function(){ winMode = k; renderWinnersPublic(); });
+    winModeBtns[k].addEventListener('click', function(){ winAutoMode = false; winMode = k; renderWinnersPublic(); });
   });
 
   renderWinnersPublic();
@@ -626,6 +630,18 @@
         var closed = count >= 10;
         regCardEl.style.display = closed ? 'none' : '';
         closedCardEl.style.display = closed ? '' : 'none';
+
+        // As long as the visitor hasn't manually picked a date/mode, keep
+        // the "Ganadores" section pointed at whichever day is relevant:
+        // today's list once today's 10 prizes are all in, yesterday's
+        // before that.
+        if (winAutoMode && winMode === 'day'){
+          var target = closed ? todayStr() : shiftDate(todayStr(), -1);
+          if (winSelectedDate !== target){
+            winSelectedDate = target;
+            renderWinnersPublic();
+          }
+        }
       });
   }
   checkTodaysDrawsClosed();
