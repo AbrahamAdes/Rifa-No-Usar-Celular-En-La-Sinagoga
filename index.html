@@ -82,6 +82,12 @@
   }
   .phoneRow input[type="tel"]{ margin-bottom:0; }
   input[type="tel"]:focus{ border-color:var(--gold); }
+  input[type="text"].nameInput{
+    width:100%; padding:15px 14px; border-radius:14px; border:1.5px solid var(--line);
+    background:transparent; color:var(--ink); font-size:17px; font-family:'Assistant',sans-serif;
+    outline:none; margin-bottom:6px;
+  }
+  input[type="text"].nameInput:focus{ border-color:var(--gold); }
   .hint{ font-size:12.5px; color:var(--ink-dim); margin:0 0 20px; }
   .closedCard{ text-align:center; }
   .closedCard .closedIcon{ font-size:34px; margin-bottom:10px; display:block; }
@@ -243,6 +249,10 @@
       <p class="closedText" id="closedText">¡Felicidades a los ganadores! Ya se sortearon los 10 premios del día — la inscripción para hoy está cerrada.<br><br>Participa mañana registrándote antes de tu tefilá.</p>
     </div>
     <div class="card" id="regCard">
+      <div id="nameField" style="display:none;">
+        <p class="label">Nombre y apellido</p>
+        <input type="text" class="nameInput" id="nameInput" placeholder="Nombre y apellido" autocomplete="name" />
+      </div>
       <p class="label">Tu número de celular</p>
       <div class="phoneRow">
         <span class="phonePrefix" id="phonePrefix" style="display:none;">+52</span>
@@ -440,6 +450,12 @@
       phonePrefixEl.textContent = CONFIG.phonePrefix;
       phonePrefixEl.style.display = '';
     }
+    // Solo México pide nombre y apellido (obligatorio) — Panamá sigue
+    // registrando solo con teléfono, igual que siempre.
+    var nameFieldEl = document.getElementById('nameField');
+    if (nameFieldEl && COMMUNITY === 'mexico'){
+      nameFieldEl.style.display = '';
+    }
   })();
 
   function todayStr(){
@@ -523,6 +539,7 @@
   chipNote.textContent = baseChipNote();
   var submitBtn = document.getElementById('submitBtn');
   var phoneInput = document.getElementById('phoneInput');
+  var nameInput = document.getElementById('nameInput');
   var formMsg = document.getElementById('formMsg');
   var overlay = document.getElementById('confirmOverlay');
   var saveStatus = document.getElementById('saveStatus');
@@ -589,6 +606,12 @@
     }
     if (!isValidPhoneLen(phone.length)){
       formMsg.textContent = phoneLenErrorMsg();
+      formMsg.className = 'msg err';
+      return;
+    }
+    var fullName = COMMUNITY === 'mexico' ? nameInput.value.trim() : '';
+    if (COMMUNITY === 'mexico' && !fullName){
+      formMsg.textContent = 'Escribe tu nombre y apellido.';
       formMsg.className = 'msg err';
       return;
     }
@@ -675,7 +698,7 @@
         var failed = false;
         for (var i = 0; i < chosen.length; i++){
           var service = chosen[i];
-          var payload = { phone: phone, service: service, community: COMMUNITY };
+          var payload = { phone: phone, service: service, community: COMMUNITY, full_name: fullName || null };
           for (var k in extraFields) payload[k] = extraFields[k];
           var res = await sb.from('registrations').insert(payload);
           if (res.error){
@@ -697,6 +720,7 @@
       })();
 
       phoneInput.value = '';
+      if (COMMUNITY === 'mexico') nameInput.value = '';
       chips.forEach(function(b){ b.setAttribute('aria-pressed','false'); b.removeAttribute('data-already'); });
       chipNote.textContent = baseChipNote();
     }
@@ -735,7 +759,7 @@
         name.textContent = labelFor(w.service);
         var phoneEl = document.createElement('span');
         phoneEl.className = 'winnerPhone';
-        phoneEl.textContent = w.phone;
+        phoneEl.textContent = w.full_name ? (w.full_name + ' — ' + w.phone) : w.phone;
         row.appendChild(num);
         row.appendChild(name);
         row.appendChild(phoneEl);
@@ -1164,7 +1188,8 @@
             var row = document.createElement('div');
             row.className = 'listRow';
             var label = document.createElement('span');
-            label.textContent = '#' + w.winner_number + ' — ' + w.phone + ' (' + labelFor(w.service) + ')';
+            var winnerWho = w.full_name ? (w.full_name + ' — ' + w.phone) : w.phone;
+            label.textContent = '#' + w.winner_number + ' — ' + winnerWho + ' (' + labelFor(w.service) + ')';
             var delBtn = document.createElement('button');
             delBtn.className = 'rowDelete';
             delBtn.title = 'Quitar este ganador';
@@ -1192,7 +1217,8 @@
           top.style.justifyContent = 'space-between';
           top.style.width = '100%';
           var label = document.createElement('span');
-          label.textContent = phone + ' — ' + tickets.length + ' boleto' + (tickets.length > 1 ? 's' : '');
+          var personName = tickets[0] && tickets[0].full_name;
+          label.textContent = (personName ? personName + ' — ' : '') + phone + ' — ' + tickets.length + ' boleto' + (tickets.length > 1 ? 's' : '');
           top.appendChild(label);
           row.appendChild(top);
           var wrap = document.createElement('div');
@@ -1227,8 +1253,9 @@
         return;
       }
       var numLabel = CONFIG.mode === 'weekly' ? '' : ('#' + res.body.winner_number + ': ');
+      var winnerWhoBox = res.body.full_name ? (res.body.full_name + ' — ' + res.body.winner) : res.body.winner;
       winnerBox.innerHTML =
-        '<div class="winner">🎉 Ganador ' + numLabel + '<b>' + res.body.winner + '</b> (' + labelFor(res.body.service) + ')' +
+        '<div class="winner">🎉 Ganador ' + numLabel + '<b>' + winnerWhoBox + '</b> (' + labelFor(res.body.service) + ')' +
         '<br><span class="winnerSaveNote">✅ Publicado — ya aparece en la página de registro.</span></div>';
       renderWinnersPublic();
       renderAdmin();
@@ -1240,9 +1267,10 @@
   document.getElementById('drawBtn').addEventListener('click', drawWinner);
 
   function deleteWinner(w){
+    var winnerWhoConfirm = w.full_name ? (w.full_name + ' — ' + w.phone) : w.phone;
     var confirmMsg = CONFIG.mode === 'weekly'
-      ? '¿Quitar al ganador (' + w.phone + ') de esta semana?'
-      : '¿Quitar al ganador #' + w.winner_number + ' (' + w.phone + ')? Los ganadores con número mayor se van a recorrer uno hacia atrás.';
+      ? '¿Quitar al ganador (' + winnerWhoConfirm + ') de esta semana?'
+      : '¿Quitar al ganador #' + w.winner_number + ' (' + winnerWhoConfirm + ')? Los ganadores con número mayor se van a recorrer uno hacia atrás.';
     if (!window.confirm(confirmMsg)) return;
     adminCall({ action: 'delete_winner', id: w.id }).then(function(res){
       if (res.status !== 200) window.alert('No se pudo eliminar. Intenta de nuevo.');
@@ -1253,7 +1281,7 @@
   }
 
   function deleteOne(record){
-    var label = record.phone + ' (' + labelFor(record.service) + ')';
+    var label = (record.full_name ? record.full_name + ' — ' : '') + record.phone + ' (' + labelFor(record.service) + ')';
     if (!window.confirm('¿Eliminar el registro de ' + label + '? Esta acción no se puede deshacer.')) return;
     adminCall({ action: 'delete_one', id: record.id }).then(function(res){
       if (res.status !== 200) window.alert('No se pudo eliminar. Intenta de nuevo.');
