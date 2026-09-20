@@ -477,6 +477,27 @@
   }
   function isFridayToday(){ return new Date().getDay() === 5; }
 
+  // Días especiales (además de los viernes) en los que tampoco hay rifa de
+  // Arbit, solo en Panamá — Abraham va agregando fechas aquí cuando haga
+  // falta (ej. vísperas de días festivos). No afecta a México.
+  var PANAMA_ARBIT_BLOCKED_DATES = ['2026-09-20'];
+  function isArbitBlockedToday(){
+    if (isFridayToday()) return true;
+    return COMMUNITY === 'panama' && PANAMA_ARBIT_BLOCKED_DATES.indexOf(todayStr()) !== -1;
+  }
+
+  // Cierre definitivo y AUTOMÁTICO del proyecto de Panamá, hoy 20 de
+  // septiembre de 2026 a las 6:00pm — no depende de que el administrador
+  // presione ningún botón. Usa el reloj del dispositivo del visitante
+  // (igual que el cierre de Shabat de arriba), válido porque quienes usan
+  // esta página están físicamente en Panamá. Una vez pasada esa fecha/hora
+  // esto queda true para siempre (el cierre es permanente). No afecta a
+  // México en absoluto (primera condición).
+  var PANAMA_PROJECT_END = new Date(2026, 8, 20, 18, 0, 0); // mes 8 = septiembre (0-indexado)
+  function isPanamaProjectEnded(){
+    return COMMUNITY === 'panama' && new Date() >= PANAMA_PROJECT_END;
+  }
+
   function formatDateLabel(dateStr){
     var today = todayStr();
     var yesterday = shiftDate(today, -1);
@@ -514,14 +535,18 @@
     }
   }
 
-  if (isFridayToday()){
+  if (isArbitBlockedToday()){
     var arbitChip = document.querySelector('#serviceChips .chip[data-service="arbit"]');
     if (arbitChip){
       arbitChip.setAttribute('data-unavailable', 'true');
       arbitChip.setAttribute('aria-pressed', 'false');
     }
   }
-  function baseChipNote(){ return isFridayToday() ? 'Los viernes no hay rifa de Arbit.' : ''; }
+  function baseChipNote(){
+    if (isFridayToday()) return 'Los viernes no hay rifa de Arbit.';
+    if (isArbitBlockedToday()) return 'Hoy no hay rifa de Arbit.';
+    return '';
+  }
   chips.forEach(function(btn){
     btn.addEventListener('click', function(){
       if (btn.dataset.already === 'true') return;
@@ -623,8 +648,14 @@
       checkTodaysDrawsClosed();
       return;
     }
-    if (isFridayToday() && chosen.indexOf('arbit') !== -1){
-      formMsg.textContent = 'Los viernes no hay rifa de Arbit.';
+    if (isPanamaProjectEnded()){
+      formMsg.textContent = 'La rifa de Panamá ya terminó — ya no se aceptan nuevas inscripciones.';
+      formMsg.className = 'msg err';
+      checkTodaysDrawsClosed();
+      return;
+    }
+    if (isArbitBlockedToday() && chosen.indexOf('arbit') !== -1){
+      formMsg.textContent = isFridayToday() ? 'Los viernes no hay rifa de Arbit.' : 'Hoy no hay rifa de Arbit.';
       formMsg.className = 'msg err';
       return;
     }
@@ -639,7 +670,9 @@
       var pausedRow = (pausedRes.data || [])[0];
       if (pausedRow && pausedRow.registration_paused){
         submitBtn.disabled = false;
-        formMsg.textContent = 'No se pudo realizar tu solicitud: las inscripciones están pausadas temporalmente.';
+        formMsg.textContent = COMMUNITY === 'panama'
+          ? 'La rifa de Panamá ya terminó — ya no se aceptan nuevas inscripciones.'
+          : 'No se pudo realizar tu solicitud: las inscripciones están pausadas temporalmente.';
         formMsg.className = 'msg err';
         checkTodaysDrawsClosed();
         return;
@@ -857,6 +890,17 @@
     }
     shabbatCardEl.style.display = 'none';
 
+    // Cierre automático y definitivo del proyecto de Panamá (ver
+    // isPanamaProjectEnded arriba) — se revisa ANTES que la pausa manual del
+    // admin, porque este cierre no depende de que nadie presione nada.
+    if (isPanamaProjectEnded()){
+      closedTitleEl.textContent = 'La rifa de Panamá ya terminó';
+      closedTextEl.innerHTML = '¡Gracias a todos por participar! El proyecto de la rifa de Panamá ha llegado a su fin — ya no se pueden hacer nuevas inscripciones.';
+      regCardEl.style.display = 'none';
+      closedCardEl.style.display = '';
+      return;
+    }
+
     // El administrador puede pausar las inscripciones manualmente (botón
     // en el panel de admin) — se revisa primero, antes que el cierre
     // normal por sorteo ya realizado / semana no vigente.
@@ -864,8 +908,13 @@
       .then(function(pausedRes){
         var pausedRow = (pausedRes.data || [])[0];
         if (pausedRow && pausedRow.registration_paused){
-          closedTitleEl.textContent = 'Inscripciones pausadas';
-          closedTextEl.innerHTML = 'Las inscripciones están pausadas temporalmente. Vuelve a intentarlo más tarde.';
+          if (COMMUNITY === 'panama'){
+            closedTitleEl.textContent = 'La rifa de Panamá ya terminó';
+            closedTextEl.innerHTML = '¡Gracias a todos por participar! El proyecto de la rifa de Panamá ha llegado a su fin — ya no se pueden hacer nuevas inscripciones.';
+          } else {
+            closedTitleEl.textContent = 'Inscripciones pausadas';
+            closedTextEl.innerHTML = 'Las inscripciones están pausadas temporalmente. Vuelve a intentarlo más tarde.';
+          }
           regCardEl.style.display = 'none';
           closedCardEl.style.display = '';
           return;
